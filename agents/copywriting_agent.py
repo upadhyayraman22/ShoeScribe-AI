@@ -25,7 +25,7 @@ def _validate_schema(data: dict) -> dict:
         data["usp_bullets"] = []
     return data
 
-def copywriting_agent(insights, user_input):
+def copywriting_agent(insights, user_input, feedback=None):
     # Safely parse insights so we know what we're working with
     if isinstance(insights, str):
         try:
@@ -36,7 +36,23 @@ def copywriting_agent(insights, user_input):
     else:
         insights_text = json.dumps(insights, indent=2)
 
+    feedback_instruction = ""
+
+    if feedback and len(feedback.strip()) > 10:
+        feedback_instruction = f"""
+Improve the product description based on this feedback:
+
+{feedback}
+
+Rules:
+- Fix only the weak areas mentioned
+- Keep strong parts unchanged
+- Improve weak sections; rewrite parts only if necessary for clarity and impact
+- Improve clarity, persuasiveness, and structure
+"""
     prompt = f"""You are an expert e-commerce copywriter specialising in footwear products.
+
+{feedback_instruction}
 
 Product name: {user_input}
 
@@ -50,7 +66,9 @@ These were extracted from verified market research data.
 Your task is to write compelling, conversion-focused product copy using ONLY the insights above.
 
 GROUNDING RULES (strictly enforced):
-- Do NOT generate any information not present in the insights above.
+- Base content primarily on the insights above.
+- You may improve clarity, structure, and persuasiveness using general writing knowledge.
+- Do NOT invent specific product claims not supported by the insights.
 - Do NOT create or invent brand names, company names, or competitor names.
 - Do NOT fabricate features, statistics, endorsements, or claims not found in the input.
 - If a USP bullet has no supporting insight, do NOT include it.
@@ -78,7 +96,8 @@ Return exactly this JSON structure:
 
     response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.6
     )
 
     raw = response.choices[0].message.content

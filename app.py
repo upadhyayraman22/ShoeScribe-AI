@@ -4,11 +4,6 @@ import os
 import math
 if "result" not in st.session_state:
     st.session_state.result = None
-if "name" not in st.session_state:
-    st.session_state.name = ""
-
-if "category" not in st.session_state:
-    st.session_state.category = ""
 from orchestrator import run_pipeline
 
 st.set_page_config(page_title="ShoeScribe AI", layout="wide", page_icon="👟")
@@ -70,10 +65,10 @@ st.markdown("<div class='input-section'>", unsafe_allow_html=True)
 col1, col2, col3 = st.columns([3, 3, 1])
 
 with col1:
-    name = st.text_input("Product Name", value=st.session_state.name)
+    name = st.text_input("Product Name", placeholder="e.g. Nike Air Max 270", label_visibility="visible")
 
 with col2:
-    category = st.text_input("Category", value=st.session_state.category)
+    category = st.text_input("Category", placeholder="e.g. running shoes", label_visibility="visible")
 
 with col3:
     st.markdown("<div class='btn-spacer'></div>", unsafe_allow_html=True)
@@ -113,9 +108,6 @@ if run:
         """, unsafe_allow_html=True)
         st.stop()
 
-    st.session_state.name = name
-    st.session_state.category = category
-
     tracker_placeholder = st.empty()
     status_placeholder  = st.empty()
     done_stages = set()
@@ -151,12 +143,10 @@ insights   = safe_json(result.get("insights")) if result else None
 content    = safe_json(result.get("content")) if result else None
 evaluation = safe_json(result.get("evaluation")) if result else None
 
-if st.button("🔄 Regenerate"):
-    st.session_state.result = run_pipeline(
-        st.session_state.name,
-        st.session_state.category
-    )
-    st.rerun()
+if st.session_state.result:
+    if st.button("🔄 Regenerate"):
+        st.session_state.result = run_pipeline(name, category)
+        st.rerun()
 
     # ───────── INSIGHTS ─────────
     if insights:

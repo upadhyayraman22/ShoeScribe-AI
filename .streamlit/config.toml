@@ -1,0 +1,16 @@
+[theme]
+# ── Base ────────────────────────────────────────────────
+base                = "light"
+
+# ── Surfaces ────────────────────────────────────────────
+backgroundColor          = "#f5f6fa"   # page background — cool soft gray (matches app.py CSS)
+secondaryBackgroundColor = "#ffffff"   # sidebar, input areas, code blocks
+
+# ── Text ────────────────────────────────────────────────
+textColor            = "#1a1d23"       # near-black — high contrast, easy on the eyes
+
+# ── Accent ──────────────────────────────────────────────
+primaryColor         = "#4f46e5"       # indigo — buttons, sliders, focus rings, checkboxes
+
+# ── Typography ──────────────────────────────────────────
+font                 = "sans serif"    # Inter loaded via Google Fonts in app.py CSS

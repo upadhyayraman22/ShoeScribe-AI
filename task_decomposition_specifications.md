@@ -121,7 +121,7 @@ The orchestrator returns a single Python dictionary with four keys, each holding
   "research":   "{ \"query\": \"...\", \"summary\": [...] }",
   "insights":   "{ \"features\": [...], \"pain_points\": [...], \"benefits\": [...], \"usp_ideas\": [...] }",
   "content":    "{ \"short_description\": \"...\", \"long_description\": \"...\", \"usp_bullets\": [...] }",
-  "evaluation": "{ \"clarity\": \"...\", \"persuasiveness\": \"...\", \"differentiation\": \"...\", \"feature_relevance\": \"...\", \"conversion_potential\": \"...\", \"feedback\": \"...\" }"
+  "evaluation": "{ \"scores\": { \"clarity\": {\"score\": 4, \"reason\": \"...\"}, \"persuasiveness\": {\"score\": 4, \"reason\": \"...\"}, ... }, \"overall_feedback\": \"...\" }"
 }
 ```
 
@@ -537,12 +537,29 @@ The following illustrates a complete end-to-end execution trace through the syst
 
 ```json
 {
-  "clarity":              "High — Copy is clear, jargon-free, and easy to understand across all three formats.",
-  "persuasiveness":       "High — The long description uses vivid sensory language and a lifestyle narrative that resonates with the target audience.",
-  "differentiation":      "Medium — USPs highlight features effectively, but do not strongly contrast against named competitors.",
-  "feature_relevance":    "High — All five USP bullets map directly to extracted product features.",
-  "conversion_potential": "High — Strong headline, compelling narrative, and specific feature bullets create a persuasive purchase case.",
-  "feedback":             "To strengthen differentiation, consider adding a direct comparison hook (e.g., 'More cushion than the competition, at a price that makes sense'). Including a size/fit note could also reduce purchase hesitation."
+  "scores": {
+    "clarity": {
+      "score": 5,
+      "reason": "Copy is clear, jargon-free, and easy to understand across all three formats."
+    },
+    "persuasiveness": {
+      "score": 5,
+      "reason": "The long description uses vivid sensory language and a lifestyle narrative that resonates with the target audience."
+    },
+    "differentiation": {
+      "score": 3,
+      "reason": "USPs highlight features effectively, but do not strongly contrast against named competitors."
+    },
+    "feature_relevance": {
+      "score": 5,
+      "reason": "All five USP bullets map directly to extracted product features."
+    },
+    "conversion_potential": {
+      "score": 4,
+      "reason": "Strong headline and specific feature bullets create a persuasive purchase case but lack explicit urgency."
+    }
+  },
+  "overall_feedback": "To strengthen differentiation, consider adding a direct comparison hook. Including a size/fit note could also reduce purchase hesitation."
 }
 ```
 

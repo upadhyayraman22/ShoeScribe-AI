@@ -1,4 +1,6 @@
 from config import client
+import json
+import re
 
 def judge_agent(content):
     prompt = f"""You are a senior e-commerce content strategist acting as a quality judge.
@@ -70,4 +72,25 @@ Return exactly this JSON structure with no deviations:
         temperature=0.0
     )
 
-    return response.choices[0].message.content
+    raw = response.choices[0].message.content
+
+    # Robust JSON extraction
+    fenced = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
+    if fenced:
+        cleaned = fenced.group(1).strip()
+    else:
+        cleaned = raw.strip()
+
+    try:
+        return json.loads(cleaned)
+    except (json.JSONDecodeError, TypeError):
+        return {
+        "scores": {
+            "clarity": {"score": 3, "reason": ""},
+            "persuasiveness": {"score": 3, "reason": ""},
+            "differentiation": {"score": 3, "reason": ""},
+            "feature_relevance": {"score": 3, "reason": ""},
+            "conversion_potential": {"score": 3, "reason": ""}
+        },
+        "overall_feedback": ""
+    }

@@ -2,7 +2,7 @@ from agents.research_agent import research_agent
 from agents.insight_agent import insight_agent
 from agents.copywriting_agent import copywriting_agent
 from agents.judge_agent import judge_agent
-
+import json
 
 def run_pipeline(product_name, category):
     THRESHOLD = 3.8
@@ -21,7 +21,12 @@ def run_pipeline(product_name, category):
     initial_content = content
 
     print("Evaluating content...")
-    evaluation = judge_agent(content)
+    evaluation_raw = judge_agent(content)
+
+    try:
+        evaluation = json.loads(evaluation_raw)
+    except:
+        evaluation = {}
 
     # --- INITIAL SCORE ---
     score_data = evaluation.get("scores", {})
@@ -48,7 +53,12 @@ def run_pipeline(product_name, category):
                 feedback=feedback
             )
 
-            improved_evaluation = judge_agent(improved_content)
+            improved_raw = judge_agent(improved_content)
+
+            try:
+                improved_evaluation = json.loads(improved_raw)
+            except:
+                improved_evaluation = {}
 
             # --- RE-CALCULATE SCORE ---
             improved_scores = improved_evaluation.get("scores", {})

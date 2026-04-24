@@ -2,6 +2,8 @@ import streamlit as st
 import json
 import os
 import math
+if "result" not in st.session_state:
+    st.session_state.result = None
 from orchestrator import run_pipeline
 
 st.set_page_config(page_title="ShoeScribe AI", layout="wide", page_icon="👟")
@@ -129,15 +131,22 @@ if run:
         <div class="loading-sub">Stage 2 of 4</div>
     </div>""", unsafe_allow_html=True)
 
-    result = run_pipeline(name, category)
-
-    insights   = safe_json(result.get("insights"))
-    content    = safe_json(result.get("content"))
-    evaluation = safe_json(result.get("evaluation"))
+    st.session_state.result = run_pipeline(name, category)
+    result = st.session_state.result
 
     done_stages.update({"insights", "writing", "evaluation"})
     tracker_placeholder.markdown(pipeline_tracker(active=-1, done=done_stages), unsafe_allow_html=True)
     status_placeholder.empty()
+result = st.session_state.result
+
+insights   = safe_json(result.get("insights")) if result else None
+content    = safe_json(result.get("content")) if result else None
+evaluation = safe_json(result.get("evaluation")) if result else None
+
+if st.session_state.result:
+    if st.button("🔄 Regenerate"):
+        st.session_state.result = run_pipeline(name, category)
+        st.rerun()
 
     # ───────── INSIGHTS ─────────
     if insights:
@@ -282,8 +291,7 @@ if run:
                 {feedback}
             </div>""", unsafe_allow_html=True)
 
-# ───────── EMPTY STATE ─────────
-else:
+if not st.session_state.result:
     st.markdown("""
     <div class="empty-state">
         <span class="empty-icon">👟</span>

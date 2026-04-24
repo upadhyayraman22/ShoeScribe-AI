@@ -68,18 +68,17 @@ The following diagram illustrates the end-to-end execution flow of the pipeline.
  Research Agent  ──►  Insight Agent  ──►  Copywriting  ──►  Judge Agent
                                            Agent
           │                    │                    │                │
-  {query,           {features,           {short_desc,        {clarity,
-   summary[]}        pain_points,         long_desc,           persuasiveness,
-                     benefits,            usp_bullets[]}       differentiation,
-                     usp_ideas[]}                              feature_relevance,
-                                                               conversion_potential,
-                                                               feedback}
+  {query,           {features,           {short_desc,        {scores:{clarity,persuasiveness,
+   summary[]}        pain_points,         long_desc,           differentiation,feature_relevance,
+                     benefits,            usp_bullets[]}       conversion_potential}
+                     usp_ideas[]}                              (each:{score,reason}),
+                                                               overall_feedback}
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    FINAL RESULT DICTIONARY                          │
-│   { "research": ..., "insights": ...,                               │
-│     "content": ..., "evaluation": ... }                             │
+│   { "research": ..., "insights": ..., "content": ...,               │
+│     "evaluation": ...}                                              │
 └─────────────────────────────────────────────────────────────────────┘
                                │
                                ▼
@@ -220,7 +219,7 @@ The Insight Agent transforms unstructured web-scraped text into a structured, ma
 
 | Parameter | Type | Source | Description |
 |-----------|------|--------|-------------|
-| `research_data` | `dict` | Research Agent | Dictionary containing `"query"` and `"summary"` keys |
+| `research_data` | `dict` | Orchestrator | Dictionary containing `"summary"` (list of strings from Research Agent) and `"category"` (string from user input) |
 
 #### 4.2.3 Processing Steps
 
@@ -280,17 +279,19 @@ Step 4 — Content Extraction
 | Decision | Condition | Outcome |
 |----------|-----------|---------|
 | Context window management | Always takes `summary[:2]` | Ensures prompt stays within LLM token limits; trades completeness for reliability |
-| JSON enforcement | Prompt explicitly states "Return STRICTLY in JSON format" and "Do not add any extra text outside JSON" | Reduces probability of prose-wrapped JSON that breaks downstream parsing |
-| Brand hallucination prevention | Prompt states "Do not invent brand names" | Prevents the LLM from fabricating competitor or brand references |
+| JSON enforcement | Prompt instructs "Return STRICT JSON" and "Output ONLY JSON" | Reduces probability of prose-wrapped JSON that breaks downstream parsing |
+| Markdown fence stripping | `_extract_json()` called on every LLM response | Strips ` ```json ``` ` wrappers before `json.loads()`, preventing parse failures |
+| Schema validation with fallbacks | `_validate_schema()` checks each key; `FALLBACKS` dict provides category-aware defaults | If any list has fewer than 3 items or is missing, it is replaced with a realistic fallback for that shoe category |
+| Empty context guard | `if not combined_text` | Returns a hardcoded fallback JSON dict rather than calling the LLM with empty input |
 
 #### 4.2.6 Error Handling
 
 | Failure Mode | Cause | Current Behaviour | Recommended Improvement |
 |--------------|-------|-------------------|------------------------|
-| LLM returns invalid JSON | Model adds preamble or markdown code blocks | `json.loads()` in Streamlit UI fails; fallback `st.write()` renders raw text | Add a JSON extraction function using regex to strip markdown fences |
-| Empty `summary` input | Research Agent returned no results | `combined_text` becomes `""` — the LLM receives an empty context | Add guard: if `combined_text` is empty, raise `ValueError("Insufficient research data")` |
-| Groq API failure | Rate limit, network error, invalid key | Unhandled exception propagates to Streamlit spinner and crashes the UI | Wrap in `try/except` with a user-friendly error message |
-| Malformed output keys | LLM deviates from schema | Downstream `copywriting_agent` receives partial/incorrect data | Add schema validation (e.g., `pydantic` model or manual key checks) |
+| LLM returns invalid JSON | Model adds preamble or markdown code blocks | `_extract_json()` strips fences; if `json.loads()` still fails, returns a safe empty structure | ✅ Handled |
+| Empty `summary` input | Research Agent returned no results | `combined_text` becomes `""` — function returns hardcoded fallback dict immediately | ✅ Handled via explicit empty-context guard |
+| Groq API failure | Rate limit, network error, invalid key | Unhandled exception propagates and crashes the pipeline | ⚠️ Wrap in `try/except` with a user-friendly error message |
+| Malformed output keys or small lists | LLM deviates from schema or returns fewer items than required | `_validate_schema()` replaces invalid/short lists with category-aware `FALLBACKS` | ✅ Handled |
 
 ---
 
@@ -391,7 +392,10 @@ The Judge Agent acts as an autonomous quality evaluator. It independently review
 Step 1 — Prompt Construction
   Build an evaluation prompt that:
     a) Presents the content (raw JSON string) to be evaluated
-    b) Specifies six evaluation fields with strict JSON-only output
+    b) Defines a 1–5 integer scoring rubric (Poor → Excellent)
+    c) Specifies five evaluation dimensions with strict JSON-only output
+    d) Requires a per-dimension integer "score" + one-sentence "reason"
+    e) Requires an "overall_feedback" string with 1–2 actionable suggestions
 
 Step 2 — LLM Inference
   Call client.chat.completions.create() with:
@@ -407,12 +411,29 @@ Step 3 — Content Extraction
 
 ```json
 {
-  "clarity":              "High — The descriptions are concise and free of jargon, making them accessible to a broad audience.",
-  "persuasiveness":       "Medium-High — The copy successfully conveys benefits but could leverage more emotional appeal.",
-  "differentiation":      "Medium — The USPs are feature-focused but do not strongly articulate competitive advantage over alternatives.",
-  "feature_relevance":    "High — All highlighted features align with consumer needs for comfort and performance.",
-  "conversion_potential": "Medium-High — Strong short description and clear bullets are likely to drive purchase intent.",
-  "feedback":             "Consider adding social proof elements (e.g., '10,000+ satisfied runners') and a stronger emotional hook in the long description to further boost conversion."
+  "scores": {
+    "clarity": {
+      "score": 4,
+      "reason": "The copy uses simple language and logical flow, making it easy to understand."
+    },
+    "persuasiveness": {
+      "score": 4,
+      "reason": "The copy effectively emphasises benefits of comfort and support with emotional hooks."
+    },
+    "differentiation": {
+      "score": 3,
+      "reason": "While the copy highlights unique features, some of the language is generic and could be more nuanced."
+    },
+    "feature_relevance": {
+      "score": 5,
+      "reason": "The highlighted features such as lightweight cushioning and slip-on closure are highly relevant to footwear buyers."
+    },
+    "conversion_potential": {
+      "score": 4,
+      "reason": "The copy includes a clear call to action in the tone but lacks urgency or a clear mention of value."
+    }
+  },
+  "overall_feedback": "Consider adding more nuanced language to differentiate the product and including specific values or benefits to reinforce the CTA."
 }
 ```
 
@@ -420,19 +441,19 @@ Step 3 — Content Extraction
 
 | Decision | Condition | Outcome |
 |----------|-----------|---------|
-| Six-dimension evaluation | Always | Provides a structured, reproducible quality report rather than a subjective freeform review |
-| Separate feedback field | Always | Consolidates actionable improvement suggestions into one field for easier parsing |
+| Five-dimension evaluation | Always | Provides a structured, reproducible quality report rather than a subjective freeform review |
+| Numeric 1–5 integer scoring rubric | Prompt enforces integer scores; rubric defines Poor=1 through Excellent=5 | Eliminates qualitative label inconsistency across runs; enables direct numeric comparison |
+| Per-dimension reason field | Prompt requires a ≤20-word sentence citing copy evidence | Makes scores auditable and traceable to specific copy elements |
+| Separate `overall_feedback` field | Always | Consolidates 1–2 actionable improvement suggestions into one field for easier parsing |
 | Same model as other agents | `llama-3.1-8b-instant` | Ensures consistency; however, using a more capable/different model could reduce circular self-evaluation bias |
-| No scoring scale defined | Prompt does not specify numeric scales | LLM uses qualitative labels (e.g., "High", "Medium"); may vary across runs |
 
 #### 4.4.6 Error Handling
 
 | Failure Mode | Cause | Current Behaviour | Recommended Improvement |
 |--------------|-------|-------------------|------------------------|
 | Circular bias | Same model evaluates its own generation | Evaluation may be biased toward leniency | Use a different, more powerful model (e.g., `llama-3.3-70b`) for the Judge Agent |
-| Non-standardised ratings | No numeric scale enforced | Qualitative labels are inconsistent across runs | Enforce a 1–10 numeric scale in the prompt for reproducibility |
-| Invalid JSON output | LLM wraps in markdown or prose | Streamlit fallback renders raw text | Add post-processing to strip code fences |
-| Missing evaluation fields | LLM omits one or more keys | Streamlit renders incomplete JSON | Validate all six keys are present before returning |
+| Invalid JSON output | LLM wraps output in markdown or prose | Orchestrator wraps `json.loads()` in `try/except`; on failure evaluation dict is empty `{}` | ✅ Handled with graceful degradation |
+| Missing evaluation fields | LLM omits one or more score keys | UI renders only the keys present; no crash | ⚠️ Validate all five score keys are present before returning |
 
 ---
 
@@ -533,15 +554,17 @@ The table below consolidates the cross-cutting error handling posture of the sys
 
 | Layer | Error Category | Current State | Priority Fix |
 |-------|---------------|---------------|--------------|
-| UI (app.py) | JSON parse failure | `try/except` fallback to `st.write()` | ✅ Handled |
+| UI (app.py) | JSON parse failure | `safe_json()` with `try/except` fallback | ✅ Handled |
 | Research Agent | HTTP / API failure | Unhandled — crashes pipeline | ⚠️ Add try/except + raise_for_status |
 | Research Agent | Missing API key | Silent `None` key, 401 from Tavily | ⚠️ Validate at startup |
 | Research Agent | Empty results | Empty list passed downstream | ⚠️ Add minimum results guard |
-| Insight Agent | Empty context | LLM receives empty string | ⚠️ Guard against empty combined_text |
-| Insight Agent | LLM JSON non-compliance | Streamlit fallback | ✅ Partially handled |
-| Copywriting Agent | Malformed insight input | Quality degrades silently | ⚠️ Validate/parse insights before use |
+| Insight Agent | Empty context | Returns hardcoded fallback JSON immediately | ✅ Handled |
+| Insight Agent | LLM JSON non-compliance | `_extract_json()` strips fences; `try/except` returns safe empty structure | ✅ Handled |
+| Insight Agent | Schema too sparse | `_validate_schema()` replaces short/missing lists with `FALLBACKS` | ✅ Handled |
+| Copywriting Agent | Malformed insight input | `json.loads()` + `_validate_schema()` before use; safe defaults on failure | ✅ Handled |
 | Judge Agent | Circular evaluation bias | LLM evaluates its own output | ℹ️ Design limitation — consider model change |
-| Judge Agent | Non-standardised scores | Inconsistent qualitative labels | ℹ️ Enforce numeric scale in prompt |
+| Judge Agent | Non-standardised scores | Numeric 1–5 rubric enforced in prompt | ✅ Handled |
+| Judge Agent | Invalid JSON response | Orchestrator wraps `json.loads()` in `try/except`; falls back to `{}` | ✅ Handled |
 | All LLM Agents | Groq API failure | Unhandled exception | ⚠️ Add try/except with retry logic |
 
 ---
@@ -558,7 +581,7 @@ The Insight Agent deliberately truncates research summaries to the first two ite
 
 ### 7.3 Unified LLM Model Across Agents
 
-All three LLM-based agents (`insight_agent`, `copywriting_agent`, `judge_agent`) use the same model: `llama-3.1-8b-instant` via the Groq API. This simplifies configuration and reduces API complexity, but introduces a **self-evaluation bias** in the Judge Agent, as it evaluates content generated by an identical model with similar priors.
+All three LLM-based agents (`insight_agent`, `copywriting_agent`, `judge_agent`) use the same model: `llama-3.1-8b-instant` via the Groq API. This simplifies configuration and reduces API complexity, but introduces a **self-evaluation bias** in the Judge Agent, as it evaluates content generated by an identical model with similar priors. The Judge Agent mitigates inconsistency by enforcing a strict **1–5 integer scoring rubric** with per-dimension one-sentence justifications, making scores reproducible and auditable even within the same model.
 
 ### 7.4 JSON-as-Contract Communication Protocol
 

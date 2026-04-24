@@ -8,7 +8,10 @@ def run_pipeline(product_name, category):
     research = research_agent(product_name, category)
 
     print("Extracting insights...")
-    insights = insight_agent(research)
+    insights = insight_agent({
+        "summary": research["summary"],
+        "category": category
+    })
 
     print("Generating content...")
     content = copywriting_agent(insights, product_name)

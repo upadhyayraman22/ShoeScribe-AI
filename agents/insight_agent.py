@@ -2,6 +2,21 @@ import json
 import re
 from config import client
 
+FALLBACKS = {
+    "running shoes": {
+        "features": ["breathable mesh upper", "responsive cushioning", "lightweight build", "shock absorption sole", "durable outsole"],
+        "benefits": ["reduces fatigue", "improves running performance", "enhances comfort", "supports long-distance runs", "prevents foot strain"],
+        "pain_points": ["foot fatigue", "poor cushioning", "sweaty feet", "heavy shoes", "lack of support"],
+        "usp_ideas": ["engineered for endurance", "optimized energy return", "ultra-light comfort design"]
+    },
+    "casual shoes": {
+        "features": ["stylish design", "comfortable insole", "durable material", "lightweight construction", "versatile look"],
+        "benefits": ["all-day comfort", "matches multiple outfits", "easy to wear", "long-lasting usage", "enhanced style"],
+        "pain_points": ["uncomfortable fit", "poor durability", "outdated design", "heavy feel", "low breathability"],
+        "usp_ideas": ["perfect everyday wear", "blend of comfort and fashion", "designed for daily lifestyle"]
+    }
+}
+
 def _extract_json(raw: str) -> str:
     """Strip markdown code fences if present and return the bare JSON string."""
     raw = raw.strip()
@@ -11,17 +26,17 @@ def _extract_json(raw: str) -> str:
         return fenced.group(1).strip()
     return raw
 
-def _validate_schema(data: dict) -> dict:
-    defaults = {
-        "features": ["basic feature"],
-        "pain_points": ["general discomfort"],
-        "benefits": ["basic benefit"],
-        "usp_ideas": ["standard advantage"]
-    }
+def _validate_schema(data: dict, category: str) -> dict:
+    category = category.lower()
 
-    for key, default in defaults.items():
-        if key not in data or not isinstance(data[key], list) or len(data[key]) == 0:
-            data[key] = default
+    fallback = FALLBACKS.get(category, FALLBACKS.get("casual shoes"))  # type: ignore[name-defined]
+
+    for key in ["features", "benefits", "pain_points", "usp_ideas"]:
+        value = data.get(key, [])
+
+        # If invalid OR too small → replace with fallback
+        if not isinstance(value, list) or len(value) < 3:
+            data[key] = fallback[key]
 
     return data
 
@@ -79,7 +94,7 @@ Rules:
 
     try:
         parsed = json.loads(cleaned)
-        validated = _validate_schema(parsed)
+        validated = _validate_schema(parsed, research_data.get("category", "casual shoes"))
         return json.dumps(validated)
     except (json.JSONDecodeError, ValueError):
         # Return a safe empty structure rather than propagating broken JSON

@@ -344,7 +344,7 @@ ShoeScribe-AI/
 
 ## 🎥 Demo Video
 
-📹 **Loom walkthrough:** *(link will be added before submission)*
+📹 **Loom walkthrough:** **
 
 The video covers:
 - Problem statement and motivation

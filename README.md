@@ -132,7 +132,7 @@ Each agent depends entirely on the output of its predecessor. This sequential de
 └──────────────────────────────────────────────────────────┘
 ```
 
-> 📐 Full visual diagram: [`Submission_Files/Architecture_Diagram.excalidraw`](./Submission_Files/)
+> 📐 Full visual diagram: [`Submission_Files/Architecture_diagram.png`](./Submission_Files/)
 
 ---
 
